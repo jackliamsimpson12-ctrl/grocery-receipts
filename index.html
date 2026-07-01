@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>Grocery Receipt Tracker</title>
+
+<!-- iOS PWA meta tags -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Receipts" />
+<meta name="theme-color" content="#2E3A59" />
+<meta name="format-detection" content="telephone=no" />
+<!-- NOTE: these are placeholder SVG icons (see SETUP_INSTRUCTIONS.md). Swap in real PNGs later
+     for full iOS home-screen icon support, then flip these hrefs/type back to .png / image/png. -->
+<link rel="apple-touch-icon" href="apple-touch-icon.svg" />
+<link rel="icon" type="image/svg+xml" sizes="192x192" href="icon-192.svg" />
+<link rel="icon" type="image/svg+xml" sizes="512x512" href="icon-512.svg" />
+<link rel="manifest" href="manifest.json" />
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+<style>
+  :root {
+    --cream: #F6F1E6;
+    --navy: #2E3A59;
+    --aldi: #C1561A;
+    --woolies: #1B6B3A;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--cream);
+    color: var(--navy);
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    overscroll-behavior-y: none;
+    height: 100%;
+    width: 100%;
+  }
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  #root {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+  input, textarea, select, button {
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+  }
+  .mono, .price, input[data-mono="true"] {
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  a { color: inherit; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-thumb { background: rgba(46,58,89,0.25); border-radius: 4px; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  .spin { animation: spin 1s linear infinite; }
+  input[type="date"] { -webkit-appearance: none; appearance: none; }
+</style>
+
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.3.1",
+    "react-dom": "https://esm.sh/react-dom@18.3.1",
+    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+    "recharts": "https://esm.sh/recharts@2.12.7?deps=react@18.3.1,react-dom@18.3.1",
+    "lucide-react": "https://esm.sh/lucide-react@0.383.0?deps=react@18.3.1,react-dom@18.3.1"
+  }
+}
+</script>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+<script type="text/babel" data-type="module" data-presets="react" src="app.jsx"></script>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(err => {
+        console.warn('Service worker registration failed:', err);
+      });
+    });
+  }
+</script>
+</body>
+</html>

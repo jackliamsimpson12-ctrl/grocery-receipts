@@ -2,7 +2,7 @@
 <html lang="en-AU">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Grocery Receipt Tracker</title>
 
 <!-- iOS PWA meta tags -->
@@ -63,7 +63,11 @@
   ::-webkit-scrollbar-thumb { background: rgba(46,58,89,0.25); border-radius: 4px; }
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
   .spin { animation: spin 1s linear infinite; }
-  input[type="date"] { -webkit-appearance: none; appearance: none; }
+  input[type="date"] { -webkit-appearance: none; appearance: none; min-height: 46px; }
+  h1, h2 { font-family: 'Space Grotesk', system-ui, sans-serif; }
+  :focus-visible { outline: 3px solid #4A6FD1; outline-offset: 2px; border-radius: 8px; }
+  button:focus:not(:focus-visible) { outline: none; }
+  @media (prefers-reduced-motion: reduce) { .spin { animation-duration: 3s; } }
 </style>
 
 <script type="importmap">

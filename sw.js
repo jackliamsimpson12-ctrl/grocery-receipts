@@ -1,7 +1,7 @@
 // Grocery Receipt Tracker - service worker
 // Network-first strategy for the app shell, falling back to cache when offline.
 
-const CACHE_VERSION = 'receipt-tracker-v2';
+const CACHE_VERSION = 'receipt-tracker-v3';
 const SHELL_FILES = [
   './',
   './index.html',

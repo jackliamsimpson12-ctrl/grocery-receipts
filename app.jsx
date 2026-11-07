@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
+import { createPortal } from 'react-dom';
 import {
-  ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip,
 } from 'recharts';
 import {
-  LayoutDashboard, ScanLine, ShoppingCart, ShoppingBasket, ChevronDown, ChevronUp,
-  ChevronRight, Pencil, Check, X, Plus, ArrowUp, ArrowDown, Minus, Calendar, Trash2,
-  ImagePlus, Loader2, Sparkles, Tag, Search, KeyRound, Save, RefreshCw,
+  LayoutDashboard, ScanLine, ReceiptText, ChevronDown, ChevronUp,
+  Pencil, Check, X, Plus, ArrowUp, ArrowDown, Minus, Trash2,
+  ImagePlus, Loader2, Tag, Search, KeyRound, Save, CheckCircle2,
 } from 'lucide-react';
 
 /* ============================== CONSTANTS ============================== */
@@ -14,15 +15,14 @@ import {
 const COLORS = {
   cream: '#F6F1E6',
   navy: '#2E3A59',
-  navySoft: 'rgba(46,58,89,0.65)',
-  aldi: '#C1561A',
+  aldi: '#B04A14',
   woolies: '#1B6B3A',
   card: '#FFFFFF',
-  border: 'rgba(46,58,89,0.10)',
-  muted: '#6b7593',
-  priceUp: '#D64545',
-  priceDown: '#2F9E44',
-  purple: '#7C4DFF',
+  field: '#FCFAF5',
+  border: 'rgba(46,58,89,0.14)',
+  muted: '#5A6380',
+  priceUp: '#C03535',
+  priceDown: '#1F7A34',
 };
 
 const STORES = ['Aldi', 'Woolworths'];
@@ -239,35 +239,38 @@ const S = {
     background: COLORS.card,
     borderRadius: 18,
     padding: 16,
-    boxShadow: '0 2px 10px rgba(46,58,89,0.08)',
-    border: `1px solid ${COLORS.border}`,
+    boxShadow: '0 1px 4px rgba(46,58,89,0.06)',
   },
   sectionTitle: {
-    fontSize: 13,
-    fontWeight: 600,
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-    color: COLORS.muted,
+    fontSize: 17,
+    fontWeight: 700,
+    color: COLORS.navy,
     margin: '0 0 10px 0',
+  },
+  rowButton: {
+    display: 'flex', alignItems: 'center', gap: 10, width: '100%', minHeight: 52,
+    padding: '8px 2px', background: 'transparent', border: 'none',
+    borderBottom: '1px solid rgba(46,58,89,0.10)', cursor: 'pointer', textAlign: 'left',
+    color: '#2E3A59', fontSize: 15.5, fontFamily: "'Space Grotesk', system-ui, sans-serif",
   },
   input: {
     fontFamily: "'IBM Plex Mono', monospace",
-    fontSize: 15,
-    padding: '9px 12px',
+    fontSize: 16,
+    padding: '11px 12px',
     borderRadius: 10,
     border: `1px solid ${COLORS.border}`,
-    background: '#FCFAF5',
+    background: COLORS.field,
     color: COLORS.navy,
     outline: 'none',
     width: '100%',
   },
   textInput: {
     fontFamily: "'Space Grotesk', sans-serif",
-    fontSize: 15,
-    padding: '9px 12px',
+    fontSize: 16,
+    padding: '11px 12px',
     borderRadius: 10,
     border: `1px solid ${COLORS.border}`,
-    background: '#FCFAF5',
+    background: COLORS.field,
     color: COLORS.navy,
     outline: 'none',
     width: '100%',
@@ -275,8 +278,9 @@ const S = {
   button: {
     fontFamily: "'Space Grotesk', sans-serif",
     fontWeight: 600,
-    fontSize: 14,
-    padding: '10px 16px',
+    fontSize: 15,
+    padding: '12px 16px',
+    minHeight: 44,
     borderRadius: 12,
     border: 'none',
     cursor: 'pointer',
@@ -352,77 +356,132 @@ function Toast({ toast, onDismiss }) {
       <div
         style={{
           pointerEvents: 'auto',
-          background: COLORS.purple,
+          background: COLORS.navy,
           color: '#fff',
           borderRadius: 14,
-          padding: '12px 16px',
+          padding: '6px 8px 6px 16px',
           display: 'flex',
           alignItems: 'center',
           gap: 10,
-          boxShadow: '0 8px 24px rgba(124,77,255,0.35)',
+          boxShadow: '0 8px 24px rgba(46,58,89,0.35)',
           maxWidth: 460,
           width: '100%',
         }}
       >
-        <Sparkles size={18} style={{ flexShrink: 0 }} />
-        <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.35 }}>{toast.message}</div>
-        <button
-          onClick={onDismiss}
-          style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: 4 }}
-        >
-          <X size={16} />
-        </button>
+        <CheckCircle2 size={20} style={{ flexShrink: 0 }} aria-hidden="true" />
+        <div role="status" style={{ fontSize: 15, fontWeight: 500, lineHeight: 1.4 }}>{toast.message}</div>
+        <IconButton label="Dismiss" onClick={onDismiss} style={{ marginLeft: 'auto', marginRight: -8 }}><X size={18} color="#fff" /></IconButton>
       </div>
     </div>
   );
 }
 
-/* ============================== SUMMARY CARD ============================== */
+/* ============================== SUMMARY / SMALL PIECES ============================== */
 
-function SummaryCard({ label, value, sub, accent }) {
-  return (
-    <div style={{ ...S.card, padding: 14, minWidth: 0 }}>
-      <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: 0.3, textTransform: 'uppercase', color: COLORS.muted, marginBottom: 6 }}>
-        {label}
-      </div>
-      <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 22, fontWeight: 600, color: accent || COLORS.navy, lineHeight: 1.1 }}>
-        {value}
-      </div>
-      {sub ? <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 4 }}>{sub}</div> : null}
-    </div>
-  );
+function storeColor(store) {
+  return store === 'Aldi' ? COLORS.aldi : store === 'Woolworths' ? COLORS.woolies : COLORS.navy;
 }
 
-function StoreDot({ store }) {
-  const color = store === 'Aldi' ? COLORS.aldi : COLORS.woolies;
-  return <span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', background: color, marginRight: 6 }} />;
+function StoreDot({ store, size = 9 }) {
+  return <span aria-hidden="true" style={{ display: 'inline-block', flexShrink: 0, width: size, height: size, borderRadius: '50%', background: storeColor(store), marginRight: 7 }} />;
 }
 
 function PriceChangeIndicator({ direction }) {
-  if (direction === 'up') return <ArrowUp size={14} color={COLORS.priceUp} style={{ verticalAlign: 'middle' }} />;
-  if (direction === 'down') return <ArrowDown size={14} color={COLORS.priceDown} style={{ verticalAlign: 'middle' }} />;
-  return <Minus size={13} color={COLORS.muted} style={{ verticalAlign: 'middle', opacity: 0.5 }} />;
+  if (direction === 'up') return <ArrowUp size={15} color={COLORS.priceUp} aria-label="Price went up" />;
+  if (direction === 'down') return <ArrowDown size={15} color={COLORS.priceDown} aria-label="Price went down" />;
+  return <Minus size={14} color={COLORS.muted} aria-label="No change" style={{ opacity: 0.6 }} />;
+}
+
+function SectionTitle({ children, right }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
+      <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: COLORS.navy }}>{children}</h2>
+      {right}
+    </div>
+  );
+}
+
+function Segmented({ options, value, onChange, label }) {
+  return (
+    <div role="radiogroup" aria-label={label} style={{ display: 'flex', background: 'rgba(46,58,89,0.07)', borderRadius: 12, padding: 3, gap: 3 }}>
+      {options.map((o) => {
+        const on = o.value === value;
+        return (
+          <button
+            key={o.value}
+            role="radio"
+            aria-checked={on}
+            onClick={() => onChange(o.value)}
+            style={{
+              ...S.button, flex: 1, justifyContent: 'center', minHeight: 40, padding: '8px 6px', fontSize: 14,
+              background: on ? '#fff' : 'transparent',
+              color: on ? (o.accent || COLORS.navy) : COLORS.muted,
+              boxShadow: on ? '0 1px 3px rgba(46,58,89,0.15)' : 'none',
+              borderRadius: 10,
+            }}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 /* ============================== DERIVED DATA HELPERS ============================== */
 
+function dateFromIso(iso) {
+  const [y, m, d] = String(iso).split('-').map((x) => parseInt(x, 10));
+  return new Date(y, (m || 1) - 1, d || 1);
+}
+function isoFromDate(d) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+// Returns { start, end, prevStart, prevEnd, title, prevLabel } as ISO strings (end exclusive).
+// The previous range covers the same number of days so far, for a fair comparison.
+function periodRange(period, today = new Date()) {
+  const t = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const tomorrow = new Date(t); tomorrow.setDate(t.getDate() + 1);
+  if (period === 'week') {
+    const dow = (t.getDay() + 6) % 7; // Monday = 0
+    const start = new Date(t); start.setDate(t.getDate() - dow);
+    const prevStart = new Date(start); prevStart.setDate(start.getDate() - 7);
+    const prevEnd = new Date(tomorrow); prevEnd.setDate(tomorrow.getDate() - 7);
+    return { start: isoFromDate(start), end: isoFromDate(tomorrow), prevStart: isoFromDate(prevStart), prevEnd: isoFromDate(prevEnd), title: 'Spent this week', prevLabel: 'this time last week' };
+  }
+  if (period === 'month') {
+    const start = new Date(t.getFullYear(), t.getMonth(), 1);
+    const prevStart = new Date(t.getFullYear(), t.getMonth() - 1, 1);
+    const prevMonthDays = new Date(t.getFullYear(), t.getMonth(), 0).getDate();
+    const prevEnd = new Date(t.getFullYear(), t.getMonth() - 1, Math.min(t.getDate(), prevMonthDays) + 1);
+    return { start: isoFromDate(start), end: isoFromDate(tomorrow), prevStart: isoFromDate(prevStart), prevEnd: isoFromDate(prevEnd), title: `Spent in ${MONTHS[t.getMonth()]}`, prevLabel: `this time in ${MONTHS[prevStart.getMonth()]}` };
+  }
+  return { start: null, end: null, prevStart: null, prevEnd: null, title: 'Spent all time', prevLabel: null };
+}
+
+function inRange(r, start, end) {
+  if (!start) return true;
+  return r.date >= start && r.date < end;
+}
+
 function computeAggregates(receipts) {
-  let totalSpend = 0, aldiSpend = 0, wooliesSpend = 0, aldiTrips = 0, wooliesTrips = 0;
-  let totalItems = 0, totalGst = 0;
+  let totalSpend = 0, aldiSpend = 0, wooliesSpend = 0, aldiTrips = 0, wooliesTrips = 0, totalGst = 0;
   for (const r of receipts) {
     const total = Number(r.total) || 0;
     totalSpend += total;
     totalGst += Number(r.gst) || 0;
     if (r.store === 'Aldi') { aldiSpend += total; aldiTrips += 1; }
     else if (r.store === 'Woolworths') { wooliesSpend += total; wooliesTrips += 1; }
-    for (const it of (r.items || [])) totalItems += Number(it.qty) || 0;
   }
-  return { totalSpend, aldiSpend, wooliesSpend, aldiTrips, wooliesTrips, totalItems, totalGst };
+  return { totalSpend, aldiSpend, wooliesSpend, aldiTrips, wooliesTrips, totalGst };
 }
 
 // Every occurrence of every item, sorted chronologically, grouped by normalized name.
 function buildItemHistory(receipts) {
-  const groups = new Map(); // normKey -> { name, occurrences: [{date, unitPrice, store, receiptId}] }
+  const groups = new Map();
   const sorted = [...receipts].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   for (const r of sorted) {
     for (const it of (r.items || [])) {
@@ -439,86 +498,207 @@ function buildItemHistory(receipts) {
 }
 
 function itemHistoryRows(receipts) {
-  const groups = buildItemHistory(receipts);
   const rows = [];
-  for (const [key, g] of groups.entries()) {
+  for (const [key, g] of buildItemHistory(receipts).entries()) {
     const occ = g.occurrences;
     const last = occ[occ.length - 1];
     const prev = occ.length > 1 ? occ[occ.length - 2] : null;
     let direction = 'flat';
+    let change = 0;
     if (prev) {
-      if (last.unitPrice > prev.unitPrice) direction = 'up';
-      else if (last.unitPrice < prev.unitPrice) direction = 'down';
+      change = last.unitPrice - prev.unitPrice;
+      if (change > 0.004) direction = 'up';
+      else if (change < -0.004) direction = 'down';
     }
     rows.push({
       key, name: g.name, timesBought: occ.length, lastPrice: last.unitPrice,
+      prevPrice: prev ? prev.unitPrice : null, change,
+      changePct: prev && prev.unitPrice > 0 ? change / prev.unitPrice : 0,
       lastDate: last.date, lastStore: last.store, direction,
-      totalQty: occ.reduce((s, o) => s + o.qty, 0),
     });
   }
-  rows.sort((a, b) => (a.lastDate < b.lastDate ? 1 : a.lastDate > b.lastDate ? -1 : 0));
+  rows.sort((a, b) => (a.lastDate < b.lastDate ? 1 : a.lastDate > b.lastDate ? -1 : a.name.localeCompare(b.name)));
   return rows;
 }
 
-function totalSpendChartData(receipts) {
-  return [...receipts]
-    .filter((r) => r.date)
-    .sort((a, b) => (a.date < b.date ? -1 : 1))
-    .map((r) => ({
-      x: new Date(r.date + 'T00:00:00').getTime(),
-      y: Number(r.total) || 0,
-      store: r.store,
-      dateLabel: formatDateAU(r.date),
-    }));
+function shortDate(iso) {
+  const d = dateFromIso(iso);
+  return `${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}`;
 }
 
-function itemChartData(receipts, query) {
-  const qKey = normKey(query);
-  if (!qKey) return [];
-  const points = [];
-  for (const r of receipts) {
-    if (!r.date) continue;
-    for (const it of (r.items || [])) {
-      if (normKey(it.name).includes(qKey)) {
-        points.push({
-          x: new Date(r.date + 'T00:00:00').getTime(),
-          y: Number(it.unitPrice) || 0,
-          store: r.store,
-          dateLabel: formatDateAU(r.date),
-          name: it.name,
-        });
-      }
-    }
-  }
-  points.sort((a, b) => a.x - b.x);
-  return points;
-}
-
-function matchingKnownItems(knownItems, query, limit = 6) {
-  const qKey = normKey(query);
-  if (!qKey) return [];
-  return knownItems.filter((n) => normKey(n).includes(qKey)).slice(0, limit);
-}
-
-/* ============================== CUSTOM CHART DOT ============================== */
+/* ============================== CHART BITS ============================== */
 
 function StoreColoredDot(props) {
   const { cx, cy, payload } = props;
   if (cx == null || cy == null) return null;
-  const color = payload && payload.store === 'Aldi' ? COLORS.aldi
-    : payload && payload.store === 'Woolworths' ? COLORS.woolies
-    : COLORS.navy;
-  return <circle cx={cx} cy={cy} r={5} fill={color} stroke="#fff" strokeWidth={1.5} />;
+  return <circle cx={cx} cy={cy} r={5} fill={storeColor(payload && payload.store)} stroke="#fff" strokeWidth={1.5} />;
 }
 
 function ChartTooltipContent({ active, payload }) {
   if (!active || !payload || !payload.length) return null;
   const p = payload[0].payload;
   return (
-    <div style={{ background: COLORS.navy, color: '#fff', padding: '8px 12px', borderRadius: 10, fontSize: 13 }}>
+    <div style={{ background: COLORS.navy, color: '#fff', padding: '8px 12px', borderRadius: 10, fontSize: 14 }}>
       <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600 }}>{formatAUD(p.y)}</div>
-      <div style={{ opacity: 0.85, fontSize: 12, marginTop: 2 }}>{p.dateLabel} · {p.store || 'Unknown'}</div>
+      <div style={{ opacity: 0.9, fontSize: 13, marginTop: 2 }}>{p.store || 'Unknown'}, {formatDateAU(p.date)}</div>
     </div>
+  );
+}
+
+function ChartLegend() {
+  return (
+    <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 14, color: COLORS.muted }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center' }}><StoreDot store="Aldi" />Aldi</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center' }}><StoreDot store="Woolworths" />Woolworths</span>
+    </div>
+  );
+}
+
+/* ============================== HERO DOCKET ============================== */
+
+// The month/week total, set like the total line of a printed docket with a torn bottom edge.
+function SpendDocket({ range, agg, prevTotal, receiptCount }) {
+  const total = agg.totalSpend;
+  const aldiPct = total > 0 ? (agg.aldiSpend / total) * 100 : 0;
+  const diff = prevTotal != null ? total - prevTotal : null;
+  return (
+    <div style={{ position: 'relative', filter: 'drop-shadow(0 3px 8px rgba(46,58,89,0.10))' }}>
+      <div style={{ background: '#fff', borderRadius: '18px 18px 0 0', padding: '18px 18px 20px' }}>
+        <div style={{ fontSize: 15, color: COLORS.muted, fontWeight: 500 }}>{range.title}</div>
+        <div className="mono" style={{ fontSize: 44, fontWeight: 600, lineHeight: 1.1, color: COLORS.navy, margin: '4px 0 6px', letterSpacing: -1 }}>
+          {formatAUD(total)}
+        </div>
+        <div style={{ fontSize: 14, color: COLORS.muted, minHeight: 20 }}>
+          {diff == null
+            ? `${receiptCount} receipt${receiptCount === 1 ? '' : 's'}`
+            : prevTotal === 0 && total === 0
+              ? 'Nothing scanned yet'
+              : (
+                <span>
+                  <span style={{ color: diff > 0 ? COLORS.priceUp : COLORS.priceDown, fontWeight: 600 }}>
+                    {diff > 0 ? '+' : diff < 0 ? '−' : ''}{formatAUD(Math.abs(diff))}
+                  </span>
+                  {' '}vs {range.prevLabel}
+                </span>
+              )}
+        </div>
+
+        <div aria-hidden="true" style={{ display: 'flex', height: 10, borderRadius: 5, overflow: 'hidden', background: 'rgba(46,58,89,0.08)', margin: '16px 0 12px' }}>
+          {total > 0 && <div style={{ width: `${aldiPct}%`, background: COLORS.aldi }} />}
+          {total > 0 && <div style={{ width: `${100 - aldiPct}%`, background: COLORS.woolies }} />}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          {[['Aldi', agg.aldiSpend, agg.aldiTrips], ['Woolworths', agg.wooliesSpend, agg.wooliesTrips]].map(([s, amt, trips]) => (
+            <div key={s}>
+              <div style={{ display: 'flex', alignItems: 'center', fontSize: 14, color: COLORS.muted }}><StoreDot store={s} />{s}</div>
+              <div className="mono" style={{ fontSize: 18, fontWeight: 600, color: storeColor(s), marginTop: 2 }}>{formatAUD(amt)}</div>
+              <div style={{ fontSize: 13, color: COLORS.muted }}>{trips} trip{trips === 1 ? '' : 's'}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <svg aria-hidden="true" width="100%" height="10" preserveAspectRatio="none" viewBox="0 0 100 10" style={{ display: 'block' }}>
+        <path d={'M0 0 ' + Array.from({ length: 25 }, (_, i) => `L${i * 4 + 2} 9 L${i * 4 + 4} 0`).join(' ') + ' Z'} fill="#fff" />
+      </svg>
+    </div>
+  );
+}
+
+/* ============================== ITEM DETAIL SHEET ============================== */
+
+function ItemDetailSheet({ name, receipts, onClose }) {
+  const points = useMemo(() => {
+    const key = normKey(name);
+    const out = [];
+    for (const r of receipts) {
+      for (const it of (r.items || [])) {
+        if (normKey(it.name) === key && r.date) {
+          out.push({ x: dateFromIso(r.date).getTime(), y: Number(it.unitPrice) || 0, store: r.store, date: r.date });
+        }
+      }
+    }
+    return out.sort((a, b) => a.x - b.x);
+  }, [name, receipts]);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const prices = points.map((p) => p.y);
+  const low = prices.length ? Math.min(...prices) : 0;
+  const high = prices.length ? Math.max(...prices) : 0;
+  const lowPoint = points.find((p) => p.y === low);
+
+  return createPortal(
+    <div role="dialog" aria-modal="true" aria-label={`${name} price history`} style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'flex-end', background: 'rgba(30,38,58,0.45)' }} onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: COLORS.cream, width: '100%', maxWidth: 640, margin: '0 auto', borderRadius: '22px 22px 0 0',
+          padding: '18px 16px calc(env(safe-area-inset-bottom, 0px) + 20px)', maxHeight: '85vh', overflowY: 'auto',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 12 }}>
+          <h2 style={{ margin: 0, fontSize: 21, fontWeight: 700, flex: 1, lineHeight: 1.25 }}>{name}</h2>
+          <IconButton label="Close" onClick={onClose}><X size={20} color={COLORS.navy} /></IconButton>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
+          {[['Latest', prices[prices.length - 1] || 0], ['Lowest', low], ['Highest', high]].map(([l, v]) => (
+            <div key={l} style={{ ...S.card, padding: 12 }}>
+              <div style={{ fontSize: 13, color: COLORS.muted }}>{l}</div>
+              <div className="mono" style={{ fontSize: 17, fontWeight: 600, marginTop: 2 }}>{formatAUD(v)}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={S.card}>
+          {points.length < 2 ? (
+            <div style={{ padding: '28px 0', textAlign: 'center', color: COLORS.muted, fontSize: 15 }}>
+              Bought once so far. Scan more receipts to see how the price changes.
+            </div>
+          ) : (
+            <>
+              <div style={{ width: '100%', height: 220 }}>
+                <ResponsiveContainer>
+                  <LineChart data={points} margin={{ top: 8, right: 12, left: -14, bottom: 0 }}>
+                    <CartesianGrid stroke={COLORS.border} vertical={false} />
+                    <XAxis dataKey="x" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(v) => shortDate(isoFromDate(new Date(v)))} tick={{ fontSize: 12, fill: COLORS.muted }} axisLine={{ stroke: COLORS.border }} tickLine={false} minTickGap={24} />
+                    <YAxis tickFormatter={(v) => `$${v}`} tick={{ fontSize: 12, fill: COLORS.muted }} axisLine={false} tickLine={false} width={50} domain={['auto', 'auto']} />
+                    <Tooltip content={<ChartTooltipContent />} />
+                    <Line type="linear" dataKey="y" stroke="rgba(46,58,89,0.35)" strokeWidth={2} dot={<StoreColoredDot />} activeDot={{ r: 7 }} isAnimationActive={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              <ChartLegend />
+            </>
+          )}
+        </div>
+
+        {lowPoint && points.length > 1 && (
+          <p style={{ fontSize: 15, color: COLORS.muted, margin: '12px 4px 0', lineHeight: 1.5 }}>
+            Cheapest was {formatAUD(low)} at {lowPoint.store} on {formatDateAU(lowPoint.date)}. Bought {points.length} times.
+          </p>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function IconButton({ label, onClick, children, style }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      style={{ minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', borderRadius: 10, cursor: 'pointer', padding: 0, flexShrink: 0, ...style }}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -531,10 +711,7 @@ function ManageItemsPanel({ knownItems, onRename }) {
 
   const sorted = useMemo(() => [...knownItems].sort((a, b) => a.localeCompare(b)), [knownItems]);
 
-  function startEdit(name) {
-    setEditingKey(normKey(name));
-    setDraft(name);
-  }
+  function startEdit(name) { setEditingKey(normKey(name)); setDraft(name); }
   function commitEdit(oldName) {
     const newName = draft.trim();
     setEditingKey(null);
@@ -543,59 +720,44 @@ function ManageItemsPanel({ knownItems, onRename }) {
   }
 
   return (
-    <div style={{ ...S.card, marginTop: 14 }}>
+    <div style={S.card}>
       <button
         onClick={() => setOpen((o) => !o)}
-        style={{
-          background: 'transparent', border: 'none', width: '100%', cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 0,
-        }}
+        aria-expanded={open}
+        style={{ background: 'transparent', border: 'none', width: '100%', minHeight: 44, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 0, color: COLORS.navy }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Tag size={16} color={COLORS.navy} />
-          <span style={{ fontWeight: 600, fontSize: 15, color: COLORS.navy }}>Manage item names</span>
-          <span style={{ fontSize: 12, color: COLORS.muted }}>({knownItems.length})</span>
-        </div>
-        {open ? <ChevronUp size={18} color={COLORS.navy} /> : <ChevronDown size={18} color={COLORS.navy} />}
+        <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Tag size={18} />
+          <span style={{ fontWeight: 600, fontSize: 16 }}>Rename items</span>
+          <span style={{ fontSize: 14, color: COLORS.muted }}>{knownItems.length}</span>
+        </span>
+        {open ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
       </button>
-
       {open && (
-        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
-          {sorted.length === 0 && (
-            <div style={{ fontSize: 13, color: COLORS.muted, padding: '8px 0' }}>No items scanned yet.</div>
-          )}
+        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 360, overflowY: 'auto' }}>
+          <p style={{ fontSize: 14, color: COLORS.muted, margin: '0 0 6px', lineHeight: 1.45 }}>
+            Give an item the same name as another to merge their price history.
+          </p>
+          {sorted.length === 0 && <div style={{ fontSize: 15, color: COLORS.muted, padding: '8px 0' }}>No items scanned yet.</div>}
           {sorted.map((name) => {
             const isEditing = editingKey === normKey(name);
             return (
-              <div
-                key={name}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
-                  borderRadius: 10, background: '#FCFAF5', border: `1px solid ${COLORS.border}`,
-                }}
-              >
+              <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 4px 2px 12px', borderRadius: 10, background: COLORS.field, border: `1px solid ${COLORS.border}` }}>
                 {isEditing ? (
                   <>
                     <input
-                      autoFocus
-                      value={draft}
+                      autoFocus value={draft} aria-label={`New name for ${name}`}
                       onChange={(e) => setDraft(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(name); if (e.key === 'Escape') setEditingKey(null); }}
-                      style={{ ...S.textInput, padding: '6px 10px', fontSize: 14 }}
+                      style={{ ...S.textInput, padding: '8px 10px' }}
                     />
-                    <button onClick={() => commitEdit(name)} style={{ background: COLORS.navy, border: 'none', borderRadius: 8, padding: 6, cursor: 'pointer' }}>
-                      <Check size={14} color="#fff" />
-                    </button>
-                    <button onClick={() => setEditingKey(null)} style={{ background: 'transparent', border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: 6, cursor: 'pointer' }}>
-                      <X size={14} color={COLORS.navy} />
-                    </button>
+                    <IconButton label="Save name" onClick={() => commitEdit(name)}><Check size={18} color={COLORS.priceDown} /></IconButton>
+                    <IconButton label="Cancel" onClick={() => setEditingKey(null)}><X size={18} color={COLORS.muted} /></IconButton>
                   </>
                 ) : (
                   <>
-                    <span style={{ flex: 1, fontSize: 14, color: COLORS.navy }}>{name}</span>
-                    <button onClick={() => startEdit(name)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 6 }}>
-                      <Pencil size={14} color={COLORS.muted} />
-                    </button>
+                    <span style={{ flex: 1, fontSize: 15 }}>{name}</span>
+                    <IconButton label={`Rename ${name}`} onClick={() => startEdit(name)}><Pencil size={16} color={COLORS.muted} /></IconButton>
                   </>
                 )}
               </div>
@@ -609,130 +771,140 @@ function ManageItemsPanel({ knownItems, onRename }) {
 
 /* ============================== DASHBOARD TAB ============================== */
 
-function DashboardTab({ receipts, knownItems, onRenameItem }) {
+function DashboardTab({ receipts, knownItems, onRenameItem, onScan }) {
+  const [period, setPeriod] = useState('month');
   const [itemQuery, setItemQuery] = useState('');
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [openItem, setOpenItem] = useState(null);
 
-  const agg = useMemo(() => computeAggregates(receipts), [receipts]);
-  const historyRows = useMemo(() => itemHistoryRows(receipts), [receipts]);
-  const suggestions = useMemo(() => matchingKnownItems(knownItems, itemQuery), [knownItems, itemQuery]);
+  const range = useMemo(() => periodRange(period), [period]);
+  const periodReceipts = useMemo(() => receipts.filter((r) => inRange(r, range.start, range.end)), [receipts, range]);
+  const agg = useMemo(() => computeAggregates(periodReceipts), [periodReceipts]);
+  const prevTotal = useMemo(() => {
+    if (!range.prevStart) return null;
+    return receipts.filter((r) => inRange(r, range.prevStart, range.prevEnd)).reduce((s, r) => s + (Number(r.total) || 0), 0);
+  }, [receipts, range]);
 
-  const chartData = useMemo(() => {
-    if (itemQuery.trim()) return itemChartData(receipts, itemQuery);
-    return totalSpendChartData(receipts);
-  }, [receipts, itemQuery]);
+  const tripData = useMemo(() => [...periodReceipts]
+    .filter((r) => r.date)
+    .sort((a, b) => (a.date < b.date ? -1 : 1))
+    .map((r) => ({ id: r.id, label: shortDate(r.date), y: Number(r.total) || 0, store: r.store, date: r.date })), [periodReceipts]);
 
-  const chartTitle = itemQuery.trim() ? `Price history: "${itemQuery.trim()}"` : 'Total receipt price over time';
+  const allRows = useMemo(() => itemHistoryRows(receipts), [receipts]);
+  const risers = useMemo(() => allRows
+    .filter((r) => r.direction === 'up' && inRange({ date: r.lastDate }, range.start, range.end))
+    .sort((a, b) => b.changePct - a.changePct)
+    .slice(0, 5), [allRows, range]);
+  const shownRows = useMemo(() => {
+    const q = normKey(itemQuery);
+    return q ? allRows.filter((r) => r.key.includes(q)) : allRows;
+  }, [allRows, itemQuery]);
+
+  const emptyApp = receipts.length === 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <SummaryCard label="Total spend" value={formatAUD(agg.totalSpend)} sub={`${receipts.length} receipts`} />
-        <SummaryCard label="Total GST paid" value={formatAUD(agg.totalGst)} />
-        <SummaryCard label="Aldi" value={formatAUD(agg.aldiSpend)} sub={`${agg.aldiTrips} trip${agg.aldiTrips === 1 ? '' : 's'}`} accent={COLORS.aldi} />
-        <SummaryCard label="Woolworths" value={formatAUD(agg.wooliesSpend)} sub={`${agg.wooliesTrips} trip${agg.wooliesTrips === 1 ? '' : 's'}`} accent={COLORS.woolies} />
-        <SummaryCard label="Total items bought" value={agg.totalItems.toLocaleString('en-AU', { maximumFractionDigits: 1 })} sub="across all receipts" />
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: 16 }}>
+      <Segmented
+        label="Time period"
+        value={period}
+        onChange={setPeriod}
+        options={[{ value: 'week', label: 'This week' }, { value: 'month', label: 'This month' }, { value: 'all', label: 'All time' }]}
+      />
 
-      <div style={S.card}>
-        <div style={S.sectionTitle}>{chartTitle}</div>
-        <div style={{ position: 'relative', marginBottom: 10 }}>
-          <Search size={15} color={COLORS.muted} style={{ position: 'absolute', left: 10, top: 11 }} />
-          <input
-            value={itemQuery}
-            onChange={(e) => { setItemQuery(e.target.value); setShowSuggestions(true); }}
-            onFocus={() => setShowSuggestions(true)}
-            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-            placeholder="Type an item name to see its price history…"
-            style={{ ...S.textInput, paddingLeft: 32 }}
-          />
-          {showSuggestions && suggestions.length > 0 && (
-            <div style={{
-              position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, marginTop: 4,
-              background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: 10,
-              boxShadow: '0 6px 18px rgba(46,58,89,0.15)', overflow: 'hidden',
-            }}>
-              {suggestions.map((s) => (
-                <div
-                  key={s}
-                  onMouseDown={() => { setItemQuery(s); setShowSuggestions(false); }}
-                  style={{ padding: '9px 12px', fontSize: 14, cursor: 'pointer', borderBottom: `1px solid ${COLORS.border}` }}
-                >
-                  {s}
+      <SpendDocket range={range} agg={agg} prevTotal={prevTotal} receiptCount={periodReceipts.length} />
+
+      <PrimaryButton onClick={onScan} style={{ justifyContent: 'center', minHeight: 54, fontSize: 17, borderRadius: 14 }}>
+        <ScanLine size={20} /> Scan a receipt
+      </PrimaryButton>
+
+      {emptyApp ? (
+        <div style={{ ...S.card, textAlign: 'center', padding: '28px 20px' }}>
+          <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 6 }}>No receipts yet</div>
+          <div style={{ fontSize: 15, color: COLORS.muted, lineHeight: 1.5 }}>Scan your next Aldi or Woolworths docket and your spending and prices will show up here.</div>
+        </div>
+      ) : (
+        <>
+          <div style={S.card}>
+            <SectionTitle>Each shop</SectionTitle>
+            {tripData.length === 0 ? (
+              <div style={{ padding: '24px 0', textAlign: 'center', color: COLORS.muted, fontSize: 15 }}>No shops in this period yet.</div>
+            ) : (
+              <>
+                <div style={{ width: '100%', height: 200 }}>
+                  <ResponsiveContainer>
+                    <BarChart data={tripData} margin={{ top: 8, right: 4, left: -14, bottom: 0 }}>
+                      <CartesianGrid stroke={COLORS.border} vertical={false} />
+                      <XAxis dataKey="label" tick={{ fontSize: 12, fill: COLORS.muted }} axisLine={{ stroke: COLORS.border }} tickLine={false} interval="preserveStartEnd" minTickGap={8} />
+                      <YAxis tickFormatter={(v) => `$${v}`} tick={{ fontSize: 12, fill: COLORS.muted }} axisLine={false} tickLine={false} width={50} />
+                      <Tooltip content={<ChartTooltipContent />} cursor={{ fill: 'rgba(46,58,89,0.06)' }} />
+                      <Bar dataKey="y" radius={[5, 5, 0, 0]} maxBarSize={36} isAnimationActive={false}>
+                        {tripData.map((d) => <Cell key={d.id} fill={storeColor(d.store)} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
-              ))}
-            </div>
-          )}
-          {itemQuery && (
-            <button
-              onClick={() => setItemQuery('')}
-              style={{ position: 'absolute', right: 8, top: 8, background: 'transparent', border: 'none', cursor: 'pointer' }}
-            >
-              <X size={16} color={COLORS.muted} />
-            </button>
-          )}
-        </div>
-
-        {chartData.length === 0 ? (
-          <div style={{ padding: '40px 0', textAlign: 'center', color: COLORS.muted, fontSize: 14 }}>
-            {itemQuery.trim() ? 'No purchases found for that item yet.' : 'Scan a receipt to see your spending graph.'}
+                <ChartLegend />
+              </>
+            )}
           </div>
-        ) : (
-          <div style={{ width: '100%', height: 240 }}>
-            <ResponsiveContainer>
-              <LineChart data={chartData} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
-                <CartesianGrid stroke={COLORS.border} vertical={false} />
-                <XAxis
-                  dataKey="x" type="number" domain={['dataMin', 'dataMax']}
-                  tickFormatter={(v) => formatDateAU(new Date(v))}
-                  tick={{ fontSize: 11, fill: COLORS.muted }}
-                  axisLine={{ stroke: COLORS.border }} tickLine={false}
-                />
-                <YAxis
-                  tickFormatter={(v) => `$${v}`}
-                  tick={{ fontSize: 11, fill: COLORS.muted }}
-                  axisLine={{ stroke: COLORS.border }} tickLine={false} width={48}
-                />
-                <Tooltip content={<ChartTooltipContent />} />
-                <Line
-                  type="monotone" dataKey="y" stroke={COLORS.navy} strokeWidth={2}
-                  dot={<StoreColoredDot />} activeDot={{ r: 7 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-        <div style={{ display: 'flex', gap: 14, marginTop: 8, fontSize: 12, color: COLORS.muted }}>
-          <span><StoreDot store="Aldi" />Aldi</span>
-          <span><StoreDot store="Woolworths" />Woolworths</span>
-        </div>
-      </div>
 
-      <div style={S.card}>
-        <div style={S.sectionTitle}>Item history</div>
-        {historyRows.length === 0 ? (
-          <div style={{ padding: '20px 0', textAlign: 'center', color: COLORS.muted, fontSize: 14 }}>No items yet.</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 8, fontSize: 11, color: COLORS.muted, textTransform: 'uppercase', letterSpacing: 0.3, padding: '4px 6px', borderBottom: `1px solid ${COLORS.border}` }}>
-              <span>Item</span><span>Last price</span><span>Trend</span><span>Bought</span>
-            </div>
-            {historyRows.map((row) => (
-              <div key={row.key} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 8, alignItems: 'center', padding: '9px 6px', borderBottom: `1px solid ${COLORS.border}` }}>
-                <span style={{ fontSize: 13.5, color: COLORS.navy, display: 'flex', alignItems: 'center', minWidth: 0 }}>
-                  <StoreDot store={row.lastStore} />
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</span>
-                </span>
-                <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13.5, fontWeight: 600 }}>{formatAUD(row.lastPrice)}</span>
-                <PriceChangeIndicator direction={row.direction} />
-                <span style={{ fontSize: 12.5, color: COLORS.muted }}>×{row.timesBought}</span>
+          {risers.length > 0 && (
+            <div style={S.card}>
+              <SectionTitle>Prices that went up</SectionTitle>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {risers.map((r) => (
+                  <button key={r.key} onClick={() => setOpenItem(r.name)} style={S.rowButton}>
+                    <span style={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1 }}>
+                      <StoreDot store={r.lastStore} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
+                    </span>
+                    <span className="mono" style={{ fontSize: 14, color: COLORS.muted, whiteSpace: 'nowrap' }}>{formatAUD(r.prevPrice)} → </span>
+                    <span className="mono" style={{ fontSize: 15, fontWeight: 600, whiteSpace: 'nowrap' }}>{formatAUD(r.lastPrice)}</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: COLORS.priceUp, minWidth: 44, textAlign: 'right' }}>+{Math.round(r.changePct * 100)}%</span>
+                  </button>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            </div>
+          )}
 
-      <ManageItemsPanel knownItems={knownItems} onRename={onRenameItem} />
+          <div style={S.card}>
+            <SectionTitle right={<span style={{ fontSize: 14, color: COLORS.muted }}>Tap one for its price history</span>}>Items</SectionTitle>
+            <div style={{ position: 'relative', marginBottom: 6 }}>
+              <Search size={17} color={COLORS.muted} style={{ position: 'absolute', left: 12, top: 14 }} aria-hidden="true" />
+              <input
+                value={itemQuery}
+                onChange={(e) => setItemQuery(e.target.value)}
+                placeholder="Find an item"
+                aria-label="Find an item"
+                type="search"
+                style={{ ...S.textInput, paddingLeft: 38 }}
+              />
+            </div>
+            {shownRows.length === 0 ? (
+              <div style={{ padding: '18px 0', textAlign: 'center', color: COLORS.muted, fontSize: 15 }}>No items match “{itemQuery}”.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {shownRows.map((row) => (
+                  <button key={row.key} onClick={() => setOpenItem(row.name)} style={S.rowButton}>
+                    <span style={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1 }}>
+                      <StoreDot store={row.lastStore} />
+                      <span style={{ minWidth: 0 }}>
+                        <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</span>
+                        <span style={{ display: 'block', fontSize: 13, color: COLORS.muted }}>Bought {row.timesBought}×, last {shortDate(row.lastDate)}</span>
+                      </span>
+                    </span>
+                    <span className="mono" style={{ fontSize: 15, fontWeight: 600 }}>{formatAUD(row.lastPrice)}</span>
+                    <PriceChangeIndicator direction={row.direction} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <ManageItemsPanel knownItems={knownItems} onRename={onRenameItem} />
+        </>
+      )}
+
+      {openItem && <ItemDetailSheet name={openItem} receipts={receipts} onClose={() => setOpenItem(null)} />}
     </div>
   );
 }
@@ -745,9 +917,9 @@ function ApiKeyForm({ onSave }) {
     <div style={S.card}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <KeyRound size={17} color={COLORS.navy} />
-        <span style={{ fontWeight: 600, fontSize: 15 }}>Add your Claude API key</span>
+        <span style={{ fontWeight: 700, fontSize: 17 }}>Add your Claude API key</span>
       </div>
-      <p style={{ fontSize: 13.5, color: COLORS.muted, lineHeight: 1.5, margin: '0 0 12px 0' }}>
+      <p style={{ fontSize: 15, color: COLORS.muted, lineHeight: 1.5, margin: '0 0 12px 0' }}>
         This app reads receipts with Claude. Create a key at{' '}
         <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" style={{ color: COLORS.aldi, fontWeight: 600 }}>
           console.anthropic.com
@@ -759,6 +931,8 @@ function ApiKeyForm({ onSave }) {
           value={key}
           onChange={(e) => setKey(e.target.value)}
           placeholder="sk-ant-…"
+          aria-label="Claude API key"
+          autoComplete="off"
           style={S.textInput}
         />
         <PrimaryButton onClick={() => key.trim() && onSave(key.trim())} disabled={!key.trim()}>
@@ -786,20 +960,19 @@ function ReceiptReviewForm({ draft, setDraft, onSave, onCancel }) {
     setDraft((d) => ({ ...d, gst }));
   }
 
-  const itemCount = draft.items.reduce((s, it) => s + (Number(it.qty) || 0), 0);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={S.card}>
-        <div style={S.sectionTitle}>Store & date</div>
+        <div style={S.sectionTitle}>Store and date</div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
           {STORES.map((s) => (
             <button
               key={s}
               onClick={() => setDraft((d) => ({ ...d, store: s }))}
               style={{
-                ...S.button, flex: 1, justifyContent: 'center',
-                background: draft.store === s ? (s === 'Aldi' ? COLORS.aldi : COLORS.woolies) : '#FCFAF5',
+                ...S.button, flex: 1, justifyContent: 'center', minHeight: 48,
+                background: draft.store === s ? storeColor(s) : COLORS.field,
                 color: draft.store === s ? '#fff' : COLORS.navy,
                 border: `1px solid ${draft.store === s ? 'transparent' : COLORS.border}`,
               }}
@@ -818,41 +991,47 @@ function ReceiptReviewForm({ draft, setDraft, onSave, onCancel }) {
 
       <div style={S.card}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <div style={S.sectionTitle}>Items ({itemCount.toLocaleString('en-AU', { maximumFractionDigits: 1 })})</div>
-          <button onClick={addItem} style={{ ...S.button, background: 'transparent', border: `1px solid ${COLORS.border}`, padding: '6px 10px', fontSize: 12.5 }}>
-            <Plus size={13} /> Add item
-          </button>
+          <div style={S.sectionTitle}>Items ({draft.items.length})</div>
+          <GhostButton onClick={addItem} style={{ padding: '8px 12px' }}>
+            <Plus size={16} /> Add item
+          </GhostButton>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 52px 76px 28px', gap: 6, fontSize: 10.5, color: COLORS.muted, textTransform: 'uppercase', padding: '0 4px 4px' }}>
-          <span>Name</span><span>Qty</span><span>Unit $</span><span />
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
           {draft.items.map((it) => (
-            <div key={it.id} style={{ display: 'grid', gridTemplateColumns: '1fr 52px 76px 28px', gap: 6, alignItems: 'center' }}>
+            <div key={it.id} style={{ padding: '10px 0', borderBottom: `1px solid ${COLORS.border}` }}>
               <input
                 value={it.name}
                 onChange={(e) => updateItem(it.id, { name: e.target.value })}
                 placeholder="Item name"
-                style={{ ...S.textInput, padding: '7px 9px', fontSize: 13.5 }}
+                aria-label="Item name"
+                style={{ ...S.textInput, marginBottom: 6 }}
               />
-              <input
-                type="number" step="0.01" value={it.qty}
-                onChange={(e) => updateItem(it.id, { qty: parseFloat(e.target.value) || 0 })}
-                style={{ ...S.input, padding: '7px 6px', fontSize: 13, textAlign: 'center' }}
-              />
-              <input
-                type="number" step="0.01" value={it.unitPrice}
-                onChange={(e) => updateItem(it.id, { unitPrice: parseFloat(e.target.value) || 0 })}
-                style={{ ...S.input, padding: '7px 6px', fontSize: 13, textAlign: 'right' }}
-              />
-              <button onClick={() => removeItem(it.id)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 4 }}>
-                <Trash2 size={14} color={COLORS.priceUp} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: COLORS.muted }}>
+                  Qty
+                  <input
+                    type="number" inputMode="decimal" step="0.01" value={it.qty}
+                    onChange={(e) => updateItem(it.id, { qty: parseFloat(e.target.value) || 0 })}
+                    style={{ ...S.input, width: 72, textAlign: 'center' }}
+                  />
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: COLORS.muted, flex: 1, whiteSpace: 'nowrap' }}>
+                  Price
+                  <input
+                    type="number" inputMode="decimal" step="0.01" value={it.unitPrice}
+                    onChange={(e) => updateItem(it.id, { unitPrice: parseFloat(e.target.value) || 0 })}
+                    style={{ ...S.input, textAlign: 'right' }}
+                  />
+                </label>
+                <IconButton label={`Remove ${it.name || 'item'}`} onClick={() => removeItem(it.id)}>
+                  <Trash2 size={19} color={COLORS.priceUp} />
+                </IconButton>
+              </div>
             </div>
           ))}
           {draft.items.length === 0 && (
-            <div style={{ fontSize: 13, color: COLORS.muted, padding: '10px 0', textAlign: 'center' }}>
-              No items detected — add them manually, or try scanning again.
+            <div style={{ fontSize: 15, color: COLORS.muted, padding: '12px 0', textAlign: 'center', lineHeight: 1.5 }}>
+              No items found on this receipt. Add them yourself, or scan it again with a flatter, brighter photo.
             </div>
           )}
         </div>
@@ -862,31 +1041,31 @@ function ReceiptReviewForm({ draft, setDraft, onSave, onCancel }) {
         <div style={S.sectionTitle}>Totals</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 12, color: COLORS.muted }}>Receipt total</span>
+            <span style={{ fontSize: 14, color: COLORS.muted }}>Receipt total</span>
             <input
-              type="number" step="0.01" value={draft.total}
+              type="number" inputMode="decimal" step="0.01" value={draft.total}
               onChange={(e) => setDraft((d) => ({ ...d, total: parseFloat(e.target.value) || 0 }))}
               style={{ ...S.input, fontSize: 17, fontWeight: 600 }}
             />
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 12, color: COLORS.muted }}>GST</span>
+            <span style={{ fontSize: 14, color: COLORS.muted }}>GST</span>
             <div style={{ display: 'flex', gap: 8 }}>
               <input
-                type="number" step="0.01" value={draft.gst}
+                type="number" inputMode="decimal" step="0.01" value={draft.gst}
                 onChange={(e) => setDraft((d) => ({ ...d, gst: parseFloat(e.target.value) || 0 }))}
                 style={S.input}
               />
-              <GhostButton onClick={applyGstShortcut} style={{ whiteSpace: 'nowrap' }}>÷11</GhostButton>
+              <GhostButton onClick={applyGstShortcut} style={{ whiteSpace: 'nowrap' }}>Total ÷ 11</GhostButton>
             </div>
           </label>
         </div>
       </div>
 
       <div style={{ display: 'flex', gap: 10 }}>
-        <GhostButton onClick={onCancel} style={{ flex: 1, justifyContent: 'center' }}>Cancel</GhostButton>
-        <PrimaryButton onClick={onSave} style={{ flex: 2, justifyContent: 'center' }} disabled={!draft.store}>
-          <Save size={16} /> Save to dashboard
+        <GhostButton onClick={onCancel} style={{ flex: 1, justifyContent: 'center', minHeight: 52 }}>Discard</GhostButton>
+        <PrimaryButton onClick={onSave} style={{ flex: 2, justifyContent: 'center', minHeight: 52 }} disabled={!draft.store}>
+          <Save size={18} /> Save receipt
         </PrimaryButton>
       </div>
     </div>
@@ -948,9 +1127,8 @@ function ScanReceiptTab({ apiKey, onSaveApiKey, onSaveReceipt }) {
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
       {status !== 'review' && (
         <div style={S.card}>
-          <div style={S.sectionTitle}>Scan a receipt</div>
-          <p style={{ fontSize: 13.5, color: COLORS.muted, margin: '0 0 14px 0', lineHeight: 1.5 }}>
-            Take a photo (or choose one from your library) of an Aldi or Woolworths receipt. We'll read it and let you check everything before saving.
+          <p style={{ fontSize: 15, color: COLORS.muted, margin: '0 0 14px 0', lineHeight: 1.5 }}>
+            Photograph an Aldi or Woolworths receipt, or pick one from your photos. You'll check every line before it's saved.
           </p>
           <input
             ref={fileInputRef}
@@ -965,7 +1143,7 @@ function ScanReceiptTab({ apiKey, onSaveApiKey, onSaveReceipt }) {
             <div
               style={{
                 ...S.button, justifyContent: 'center', width: '100%', background: COLORS.navy, color: '#fff',
-                cursor: 'pointer', padding: '14px 16px', fontSize: 15,
+                cursor: 'pointer', padding: '16px', fontSize: 17, minHeight: 56,
               }}
             >
               {status === 'working' ? <Loader2 size={18} className="spin" /> : <ImagePlus size={18} />}
@@ -974,20 +1152,20 @@ function ScanReceiptTab({ apiKey, onSaveApiKey, onSaveReceipt }) {
           </label>
 
           {status === 'error' && (
-            <div style={{ marginTop: 10, background: '#FCEBEA', color: COLORS.priceUp, borderRadius: 10, padding: '10px 12px', fontSize: 13 }}>
+            <div style={{ marginTop: 10, background: '#FCEBEA', color: COLORS.priceUp, borderRadius: 10, padding: '10px 12px', fontSize: 15 }}>
               {errorMsg}
             </div>
           )}
           {status === 'saved' && (
-            <div style={{ marginTop: 10, background: '#E9F7EF', color: COLORS.priceDown, borderRadius: 10, padding: '10px 12px', fontSize: 13 }}>
-              Saved to your dashboard!
+            <div style={{ marginTop: 10, background: '#E9F7EF', color: COLORS.priceDown, borderRadius: 10, padding: '10px 12px', fontSize: 15 }}>
+              Receipt saved.
             </div>
           )}
 
           <div style={{ marginTop: 12, textAlign: 'center' }}>
             <button
               onClick={() => onSaveApiKey('')}
-              style={{ background: 'transparent', border: 'none', color: COLORS.muted, fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}
+              style={{ background: 'transparent', border: 'none', color: COLORS.muted, fontSize: 14, cursor: 'pointer', textDecoration: 'underline', minHeight: 44, padding: '0 8px' }}
             >
               Change Claude API key
             </button>
@@ -1002,192 +1180,159 @@ function ScanReceiptTab({ apiKey, onSaveApiKey, onSaveReceipt }) {
   );
 }
 
-/* ============================== STORE TAB (Aldi / Woolworths) ============================== */
+/* ============================== RECEIPTS TAB ============================== */
 
 function ReceiptRow({ receipt, expanded, onToggle }) {
-  const accent = receipt.store === 'Aldi' ? COLORS.aldi : COLORS.woolies;
   const unitCount = (receipt.items || []).reduce((s, it) => s + (Number(it.qty) || 0), 0);
   return (
-    <div style={{ borderRadius: 14, border: `1px solid ${COLORS.border}`, overflow: 'hidden', marginBottom: 10 }}>
+    <div style={{ borderRadius: 14, border: `1px solid ${COLORS.border}`, overflow: 'hidden', background: '#fff' }}>
       <button
         onClick={onToggle}
-        style={{
-          width: '100%', background: '#FCFAF5', border: 'none', cursor: 'pointer',
-          padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left',
-        }}
+        aria-expanded={expanded}
+        style={{ width: '100%', background: '#fff', border: 'none', cursor: 'pointer', padding: '12px 12px 12px 14px', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', color: COLORS.navy, minHeight: 64 }}
       >
-        <div style={{ width: 4, alignSelf: 'stretch', background: accent, borderRadius: 4, minHeight: 32 }} />
+        <div aria-hidden="true" style={{ width: 4, alignSelf: 'stretch', background: storeColor(receipt.store), borderRadius: 4 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14.5, fontWeight: 600, color: COLORS.navy }}>{formatDateAU(receipt.date)}</div>
-          <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>
-            {unitCount.toLocaleString('en-AU', { maximumFractionDigits: 1 })} items · GST {formatAUD(receipt.gst)}
+          <div style={{ fontSize: 16, fontWeight: 600 }}>{receipt.store}, {formatDateAU(receipt.date)}</div>
+          <div style={{ fontSize: 14, color: COLORS.muted, marginTop: 2 }}>
+            {unitCount.toLocaleString('en-AU', { maximumFractionDigits: 1 })} items, GST {formatAUD(receipt.gst)}
           </div>
         </div>
-        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700, fontSize: 16, color: COLORS.navy }}>
-          {formatAUD(receipt.total)}
-        </div>
-        {expanded ? <ChevronUp size={18} color={COLORS.muted} /> : <ChevronDown size={18} color={COLORS.muted} />}
+        <div className="mono" style={{ fontWeight: 600, fontSize: 17 }}>{formatAUD(receipt.total)}</div>
+        {expanded ? <ChevronUp size={20} color={COLORS.muted} /> : <ChevronDown size={20} color={COLORS.muted} />}
       </button>
       {expanded && (
-        <div style={{ padding: '10px 14px 14px', background: '#fff' }}>
+        <div style={{ padding: '4px 14px 12px', borderTop: `1px dashed ${COLORS.border}` }}>
           {(receipt.items || []).length === 0 ? (
-            <div style={{ fontSize: 13, color: COLORS.muted }}>No line items recorded.</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 40px 70px', gap: 6, fontSize: 10.5, color: COLORS.muted, textTransform: 'uppercase', paddingBottom: 4, borderBottom: `1px solid ${COLORS.border}` }}>
-                <span>Item</span><span>Qty</span><span>Unit $</span>
-              </div>
-              {receipt.items.map((it) => (
-                <div key={it.id} style={{ display: 'grid', gridTemplateColumns: '1fr 40px 70px', gap: 6, padding: '6px 0', fontSize: 13.5 }}>
-                  <span style={{ color: COLORS.navy, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.name}</span>
-                  <span style={{ color: COLORS.muted }}>{it.qty}</span>
-                  <span style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{formatAUD(it.unitPrice)}</span>
-                </div>
-              ))}
+            <div style={{ fontSize: 15, color: COLORS.muted, padding: '8px 0' }}>No line items recorded.</div>
+          ) : receipt.items.map((it) => (
+            <div key={it.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 10, padding: '8px 0', fontSize: 15, borderBottom: `1px solid ${COLORS.border}` }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.name}</span>
+              <span style={{ color: COLORS.muted }}>{it.qty !== 1 ? `${it.qty} ×` : ''}</span>
+              <span className="mono" style={{ textAlign: 'right', minWidth: 64 }}>{formatAUD(it.unitPrice)}</span>
             </div>
-          )}
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-function StoreTab({ store, receipts }) {
-  const accent = store === 'Aldi' ? COLORS.aldi : COLORS.woolies;
+function ReceiptsTab({ receipts, onScan }) {
+  const [store, setStore] = useState('all');
   const [dateFilter, setDateFilter] = useState('');
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState(null);
 
-  const storeReceipts = useMemo(() => {
-    return receipts
-      .filter((r) => r.store === store)
-      .filter((r) => !dateFilter || r.date === dateFilter)
-      .filter((r) => {
-        if (!search.trim()) return true;
-        const q = normKey(search);
-        return (r.items || []).some((it) => normKey(it.name).includes(q));
-      })
-      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
-  }, [receipts, store, dateFilter, search]);
+  const shown = useMemo(() => receipts
+    .filter((r) => store === 'all' || r.store === store)
+    .filter((r) => !dateFilter || r.date === dateFilter)
+    .filter((r) => {
+      if (!search.trim()) return true;
+      const q = normKey(search);
+      return (r.items || []).some((it) => normKey(it.name).includes(q));
+    })
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)), [receipts, store, dateFilter, search]);
 
-  const agg = useMemo(() => {
-    const totalSpend = storeReceipts.reduce((s, r) => s + (Number(r.total) || 0), 0);
-    const totalGst = storeReceipts.reduce((s, r) => s + (Number(r.gst) || 0), 0);
-    return { totalSpend, totalGst, trips: storeReceipts.length };
-  }, [storeReceipts]);
+  const total = shown.reduce((s, r) => s + (Number(r.total) || 0), 0);
+  const filtered = Boolean(dateFilter || search);
 
   return (
-    <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        {store === 'Aldi' ? <ShoppingCart size={22} color={accent} /> : <ShoppingBasket size={22} color={accent} />}
-        <div>
-          <div style={{ fontSize: 19, fontWeight: 700, color: COLORS.navy }}>{store}</div>
-          <div style={{ fontSize: 12.5, color: COLORS.muted }}>{agg.trips} receipt{agg.trips === 1 ? '' : 's'} · {formatAUD(agg.totalSpend)} · GST {formatAUD(agg.totalGst)}</div>
-        </div>
-      </div>
+    <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <Segmented
+        label="Store"
+        value={store}
+        onChange={setStore}
+        options={[{ value: 'all', label: 'All' }, { value: 'Aldi', label: 'Aldi', accent: COLORS.aldi }, { value: 'Woolworths', label: 'Woolworths', accent: COLORS.woolies }]}
+      />
 
-      <div style={{ ...S.card, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ position: 'relative' }}>
-          <Search size={15} color={COLORS.muted} style={{ position: 'absolute', left: 10, top: 11 }} />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by item name…"
-            style={{ ...S.textInput, paddingLeft: 32 }}
-          />
-        </div>
-        <div style={{ position: 'relative' }}>
-          <Calendar size={15} color={COLORS.muted} style={{ position: 'absolute', left: 10, top: 11, pointerEvents: 'none' }} />
-          <input
-            type="date"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            style={{ ...S.input, paddingLeft: 32 }}
-          />
-        </div>
-        {(dateFilter || search) && (
-          <button
-            onClick={() => { setDateFilter(''); setSearch(''); }}
-            style={{ alignSelf: 'flex-start', background: 'transparent', border: 'none', color: COLORS.muted, fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline' }}
-          >
+      <div style={{ position: 'relative' }}>
+        <Search size={17} color={COLORS.muted} style={{ position: 'absolute', left: 12, top: 14 }} aria-hidden="true" />
+        <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Receipts with an item…" aria-label="Find receipts containing an item" style={{ ...S.textInput, paddingLeft: 38 }} />
+      </div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 15, color: COLORS.muted, whiteSpace: 'nowrap' }}>On date</span>
+        <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} style={S.input} />
+      </label>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 32 }}>
+        <span style={{ fontSize: 15, color: COLORS.muted }}>
+          {shown.length} receipt{shown.length === 1 ? '' : 's'}, <span className="mono" style={{ color: COLORS.navy, fontWeight: 600 }}>{formatAUD(total)}</span>
+        </span>
+        {filtered && (
+          <button onClick={() => { setDateFilter(''); setSearch(''); }} style={{ ...S.button, background: 'transparent', color: COLORS.navy, padding: '8px 4px', minHeight: 44, textDecoration: 'underline' }}>
             Clear filters
           </button>
         )}
       </div>
 
-      <div>
-        {storeReceipts.length === 0 ? (
-          <div style={{ ...S.card, textAlign: 'center', color: COLORS.muted, fontSize: 14 }}>
-            No {store} receipts {dateFilter || search ? 'match those filters' : 'yet — scan one to get started'}.
-          </div>
-        ) : (
-          storeReceipts.map((r) => (
-            <ReceiptRow
-              key={r.id}
-              receipt={r}
-              expanded={expandedId === r.id}
-              onToggle={() => setExpandedId((id) => (id === r.id ? null : r.id))}
-            />
-          ))
-        )}
-      </div>
+      {shown.length === 0 ? (
+        <div style={{ ...S.card, textAlign: 'center', padding: '24px 18px' }}>
+          {filtered ? (
+            <div style={{ fontSize: 15, color: COLORS.muted }}>No receipts match. Try another item or clear the date.</div>
+          ) : (
+            <>
+              <div style={{ fontSize: 15, color: COLORS.muted, marginBottom: 12 }}>No {store === 'all' ? '' : `${store} `}receipts yet.</div>
+              <PrimaryButton onClick={onScan} style={{ margin: '0 auto', minHeight: 48 }}><ScanLine size={18} /> Scan a receipt</PrimaryButton>
+            </>
+          )}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {shown.map((r) => (
+            <ReceiptRow key={r.id} receipt={r} expanded={expandedId === r.id} onToggle={() => setExpandedId((id) => (id === r.id ? null : r.id))} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 /* ============================== BOTTOM NAV ============================== */
 
-const TABS = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, accent: COLORS.navy },
-  { id: 'scan', label: 'Scan Receipt', icon: ScanLine, accent: COLORS.navy },
-  { id: 'aldi', label: 'Aldi', icon: ShoppingCart, accent: COLORS.aldi },
-  { id: 'woolworths', label: 'Woolworths', icon: ShoppingBasket, accent: COLORS.woolies },
-];
-
 function BottomNav({ active, onChange }) {
+  const side = (id, label, Icon) => {
+    const on = active === id;
+    return (
+      <button
+        onClick={() => onChange(id)}
+        aria-current={on ? 'page' : undefined}
+        style={{ flex: 1, background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '10px 4px 8px', minHeight: 56, color: on ? COLORS.navy : COLORS.muted }}
+      >
+        <Icon size={23} strokeWidth={on ? 2.4 : 2} />
+        <span style={{ fontSize: 12.5, fontWeight: on ? 700 : 500 }}>{label}</span>
+      </button>
+    );
+  };
+  const scanOn = active === 'scan';
   return (
-    <div
-      style={{
-        position: 'sticky', bottom: 0, left: 0, right: 0,
-        background: '#fff', borderTop: `1px solid ${COLORS.border}`,
-        display: 'flex', paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-        boxShadow: '0 -4px 16px rgba(46,58,89,0.06)', zIndex: 50,
-      }}
+    <nav
+      aria-label="Main"
+      style={{ position: 'sticky', bottom: 0, background: '#fff', borderTop: `1px solid ${COLORS.border}`, display: 'flex', alignItems: 'flex-end', paddingBottom: 'env(safe-area-inset-bottom, 0px)', zIndex: 50 }}
     >
-      {TABS.map((t) => {
-        const Icon = t.icon;
-        const isActive = active === t.id;
-        return (
-          <button
-            key={t.id}
-            onClick={() => onChange(t.id)}
-            style={{
-              flex: 1, background: 'transparent', border: 'none', cursor: 'pointer',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-              padding: '10px 4px 8px', color: isActive ? t.accent : COLORS.muted,
-            }}
-          >
-            <Icon size={21} color={isActive ? t.accent : COLORS.muted} strokeWidth={isActive ? 2.4 : 2} />
-            <span style={{ fontSize: 10.5, fontWeight: isActive ? 700 : 500 }}>{t.label}</span>
-          </button>
-        );
-      })}
-    </div>
+      {side('dashboard', 'Dashboard', LayoutDashboard)}
+      <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+        <button
+          onClick={() => onChange('scan')}
+          aria-current={scanOn ? 'page' : undefined}
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, background: 'transparent', border: 'none', cursor: 'pointer', padding: '0 4px 8px', marginTop: -22, color: COLORS.navy }}
+        >
+          <span style={{ width: 60, height: 60, borderRadius: 30, background: COLORS.navy, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 14px rgba(46,58,89,0.35)', border: '4px solid #fff' }}>
+            <ScanLine size={26} color="#fff" strokeWidth={2.3} />
+          </span>
+          <span style={{ fontSize: 12.5, fontWeight: 700 }}>Scan</span>
+        </button>
+      </div>
+      {side('receipts', 'Receipts', ReceiptText)}
+    </nav>
   );
 }
 
 function Header({ title }) {
   return (
-    <div
-      style={{
-        position: 'sticky', top: 0, zIndex: 40, background: COLORS.cream,
-        paddingTop: 'env(safe-area-inset-top, 0px)', borderBottom: `1px solid ${COLORS.border}`,
-      }}
-    >
-      <div style={{ padding: '14px 16px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ fontSize: 19, fontWeight: 700, color: COLORS.navy }}>{title}</div>
-      </div>
-    </div>
+    <header style={{ position: 'sticky', top: 0, zIndex: 40, background: COLORS.cream, paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+      <h1 style={{ margin: 0, padding: '14px 16px 4px', fontSize: 26, fontWeight: 700, color: COLORS.navy, letterSpacing: -0.3 }}>{title}</h1>
+    </header>
   );
 }
 
@@ -1270,9 +1415,8 @@ function App() {
 
   const titles = {
     dashboard: 'Dashboard',
-    scan: 'Scan Receipt',
-    aldi: 'Aldi',
-    woolworths: 'Woolworths',
+    scan: 'Scan a receipt',
+    receipts: 'Receipts',
   };
 
   return (
@@ -1281,13 +1425,12 @@ function App() {
       <Toast toast={toast} onDismiss={() => setToast(null)} />
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {activeTab === 'dashboard' && (
-          <DashboardTab receipts={receipts} knownItems={knownItems} onRenameItem={handleRenameItem} />
+          <DashboardTab receipts={receipts} knownItems={knownItems} onRenameItem={handleRenameItem} onScan={() => setActiveTab('scan')} />
         )}
         {activeTab === 'scan' && (
           <ScanReceiptTab apiKey={apiKey} onSaveApiKey={handleSaveApiKey} onSaveReceipt={handleSaveReceipt} />
         )}
-        {activeTab === 'aldi' && <StoreTab store="Aldi" receipts={receipts} />}
-        {activeTab === 'woolworths' && <StoreTab store="Woolworths" receipts={receipts} />}
+        {activeTab === 'receipts' && <ReceiptsTab receipts={receipts} onScan={() => setActiveTab('scan')} />}
       </div>
       <BottomNav active={activeTab} onChange={setActiveTab} />
     </div>

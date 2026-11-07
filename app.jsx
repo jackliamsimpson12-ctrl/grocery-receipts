@@ -7,7 +7,7 @@ import {
 import {
   LayoutDashboard, ScanLine, ReceiptText, ChevronDown, ChevronUp,
   Pencil, Check, X, Plus, ArrowUp, ArrowDown, Minus, Trash2,
-  ImagePlus, Loader2, Tag, Search, KeyRound, Save, CheckCircle2,
+  ImagePlus, Loader2, Tag, Search, KeyRound, Save, CheckCircle2, TrendingUp,
 } from 'lucide-react';
 
 /* ============================== CONSTANTS ============================== */
@@ -331,14 +331,85 @@ function GhostButton({ children, onClick, style, disabled }) {
 
 /* ============================== TOAST ============================== */
 
+/* ============================== PRICE COMPARISON ============================== */
+
+// Latest known price for each item, from receipts dated on or before `onOrBefore` (ISO). 
+function latestPrices(receipts, onOrBefore) {
+  const map = new Map();
+  for (const r of receipts) {
+    if (!r.date || (onOrBefore && r.date > onOrBefore)) continue;
+    for (const it of (r.items || [])) {
+      const key = normKey(it.name);
+      if (!key) continue;
+      const prev = map.get(key);
+      if (!prev || r.date >= prev.date) map.set(key, { unitPrice: Number(it.unitPrice) || 0, date: r.date, store: r.store });
+    }
+  }
+  return map;
+}
+
+function compareToLast(item, ref) {
+  const last = ref.get(normKey(item.name));
+  if (!last || !(last.unitPrice > 0)) return null;
+  const now = Number(item.unitPrice) || 0;
+  const change = now - last.unitPrice;
+  if (Math.abs(change) < 0.005) return null;
+  return { direction: change > 0 ? 'up' : 'down', from: last.unitPrice, to: now, pct: change / last.unitPrice, lastDate: last.date, lastStore: last.store };
+}
+
+function PriceChangeNote({ cmp }) {
+  if (!cmp) return null;
+  const up = cmp.direction === 'up';
+  const color = up ? COLORS.priceUp : COLORS.priceDown;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, padding: '6px 10px', borderRadius: 8, background: up ? '#FBEAEA' : '#E8F4EB', color, fontSize: 14, lineHeight: 1.35 }}>
+      {up ? <ArrowUp size={15} aria-hidden="true" /> : <ArrowDown size={15} aria-hidden="true" />}
+      <span>
+        <strong>{up ? 'Up' : 'Down'} {Math.abs(Math.round(cmp.pct * 100))}%</strong> from {formatAUD(cmp.from)} at {cmp.lastStore}, {shortDate(cmp.lastDate)}
+      </span>
+    </div>
+  );
+}
+
 function Toast({ toast, onDismiss }) {
   useEffect(() => {
     if (!toast) return undefined;
-    const t = setTimeout(() => onDismiss(), 4200);
+    const t = setTimeout(() => onDismiss(), toast.rises ? 10000 : 4200);
     return () => clearTimeout(t);
   }, [toast, onDismiss]);
 
   if (!toast) return null;
+
+  if (toast.rises) {
+    const shown = toast.rises.slice(0, 3);
+    const more = toast.rises.length - shown.length;
+    return (
+      <div style={{ position: 'fixed', top: 'calc(env(safe-area-inset-top, 0px) + 12px)', left: 12, right: 12, zIndex: 999, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
+        <div role="alert" style={{ pointerEvents: 'auto', background: '#fff', color: COLORS.navy, borderRadius: 16, borderLeft: `6px solid ${COLORS.priceUp}`, padding: '10px 6px 12px 14px', boxShadow: '0 10px 30px rgba(46,58,89,0.28)', maxWidth: 460, width: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ width: 34, height: 34, borderRadius: 17, background: '#FBEAEA', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <TrendingUp size={19} color={COLORS.priceUp} aria-hidden="true" />
+            </span>
+            <div style={{ flex: 1, fontSize: 16, fontWeight: 700 }}>
+              {toast.rises.length === 1 ? 'A price went up' : `${toast.rises.length} prices went up`}
+            </div>
+            <IconButton label="Dismiss" onClick={onDismiss}><X size={18} color={COLORS.muted} /></IconButton>
+          </div>
+          <div style={{ marginTop: 4, paddingRight: 8 }}>
+            {shown.map((r) => (
+              <div key={r.name} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '5px 0', fontSize: 15 }}>
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
+                <span className="mono" style={{ fontSize: 14, color: COLORS.muted, whiteSpace: 'nowrap' }}>{formatAUD(r.from)} → <strong style={{ color: COLORS.navy }}>{formatAUD(r.to)}</strong></span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: COLORS.priceUp, minWidth: 44, textAlign: 'right' }}>+{Math.round(r.pct * 100)}%</span>
+              </div>
+            ))}
+            {more > 0 && <div style={{ fontSize: 14, color: COLORS.muted, paddingTop: 2 }}>and {more} more. See “Prices that went up” on the dashboard.</div>}
+            {toast.message && <div style={{ fontSize: 14, color: COLORS.muted, paddingTop: 6 }}>{toast.message}</div>}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -945,7 +1016,9 @@ function ApiKeyForm({ onSave }) {
 
 /* ============================== RECEIPT REVIEW FORM ============================== */
 
-function ReceiptReviewForm({ draft, setDraft, onSave, onCancel }) {
+function ReceiptReviewForm({ draft, setDraft, onSave, onCancel, receipts = [] }) {
+  const priceRef = useMemo(() => latestPrices(receipts, draft.date), [receipts, draft.date]);
+  const riseCount = draft.items.filter((it) => { const c = compareToLast(it, priceRef); return c && c.direction === 'up'; }).length;
   function updateItem(id, patch) {
     setDraft((d) => ({ ...d, items: d.items.map((it) => (it.id === id ? { ...it, ...patch } : it)) }));
   }
@@ -991,7 +1064,10 @@ function ReceiptReviewForm({ draft, setDraft, onSave, onCancel }) {
 
       <div style={S.card}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <div style={S.sectionTitle}>Items ({draft.items.length})</div>
+          <div>
+            <div style={{ ...S.sectionTitle, margin: 0 }}>Items ({draft.items.length})</div>
+            {riseCount > 0 && <div style={{ fontSize: 14, color: COLORS.priceUp, fontWeight: 600, marginTop: 2 }}>{riseCount} cost more than last time</div>}
+          </div>
           <GhostButton onClick={addItem} style={{ padding: '8px 12px' }}>
             <Plus size={16} /> Add item
           </GhostButton>
@@ -1027,6 +1103,7 @@ function ReceiptReviewForm({ draft, setDraft, onSave, onCancel }) {
                   <Trash2 size={19} color={COLORS.priceUp} />
                 </IconButton>
               </div>
+              <PriceChangeNote cmp={compareToLast(it, priceRef)} />
             </div>
           ))}
           {draft.items.length === 0 && (
@@ -1074,7 +1151,7 @@ function ReceiptReviewForm({ draft, setDraft, onSave, onCancel }) {
 
 /* ============================== SCAN RECEIPT TAB ============================== */
 
-function ScanReceiptTab({ apiKey, onSaveApiKey, onSaveReceipt }) {
+function ScanReceiptTab({ apiKey, onSaveApiKey, onSaveReceipt, receipts }) {
   const [status, setStatus] = useState('idle'); // idle | working | review | error | saved
   const [errorMsg, setErrorMsg] = useState('');
   const [draft, setDraft] = useState(null);
@@ -1174,7 +1251,7 @@ function ScanReceiptTab({ apiKey, onSaveApiKey, onSaveReceipt }) {
       )}
 
       {status === 'review' && draft && (
-        <ReceiptReviewForm draft={draft} setDraft={setDraft} onSave={handleSave} onCancel={reset} />
+        <ReceiptReviewForm draft={draft} setDraft={setDraft} onSave={handleSave} onCancel={reset} receipts={receipts} />
       )}
     </div>
   );
@@ -1388,14 +1465,24 @@ function App() {
       if (!already) newNames.push(it.name);
     }
 
+    // Compare against prices from earlier receipts, before this one is added.
+    const ref = latestPrices(receipts, receipt.date);
+    const rises = cleanItems
+      .map((it) => ({ name: it.name, cmp: compareToLast(it, ref) }))
+      .filter((x) => x.cmp && x.cmp.direction === 'up')
+      .map((x) => ({ name: x.name, from: x.cmp.from, to: x.cmp.to, pct: x.cmp.pct }))
+      .sort((a, b) => b.pct - a.pct);
+
     persistReceipts([...receipts, receipt]);
+    let msg = null;
     if (newNames.length) {
       persistKnownItems([...knownItems, ...newNames]);
-      const msg = newNames.length === 1
+      msg = newNames.length === 1
         ? `New item added: ${newNames[0]}`
-        : `New items added: ${newNames.join(', ')}`;
-      setToast({ id: uid(), message: msg });
+        : `${newNames.length} new items added`;
     }
+    if (rises.length) setToast({ id: uid(), rises, message: msg });
+    else if (msg) setToast({ id: uid(), message: msg });
   }
 
   function handleRenameItem(oldName, newName) {
@@ -1428,7 +1515,7 @@ function App() {
           <DashboardTab receipts={receipts} knownItems={knownItems} onRenameItem={handleRenameItem} onScan={() => setActiveTab('scan')} />
         )}
         {activeTab === 'scan' && (
-          <ScanReceiptTab apiKey={apiKey} onSaveApiKey={handleSaveApiKey} onSaveReceipt={handleSaveReceipt} />
+          <ScanReceiptTab apiKey={apiKey} onSaveApiKey={handleSaveApiKey} onSaveReceipt={handleSaveReceipt} receipts={receipts} />
         )}
         {activeTab === 'receipts' && <ReceiptsTab receipts={receipts} onScan={() => setActiveTab('scan')} />}
       </div>

@@ -30,27 +30,11 @@ const STORES = ['Aldi', 'Woolworths'];
 const LS_KEYS = {
   RECEIPTS: 'grt_receipts_v1',
   KNOWN_ITEMS: 'grt_known_items_v1',
-  OCR_KEY: 'grt_ocr_api_key_v1',
+  API_KEY: 'grt_claude_api_key_v1',
 };
 
-const SKIP_LINE_RE = new RegExp(
-  '\\b(TOTAL|SUBTOTAL|SUB TOTAL|SUB-TOTAL|GST|EFTPOS|CASH|CHANGE|BALANCE|VISA|' +
-  'MASTERCARD|AMEX|AUTH|APPROVED|CARD NO|CARD|TENDERED|PURCHASE|REFERENCE|TERMINAL|' +
-  'MERCHANT|ABN|RECEIPT NO|TAX INVOICE|THANK YOU|ITEMS SOLD|QTY|DOCKET|OPERATOR|' +
-  'SAVINGS|LOYALTY|REWARDS|MEMBER|POINTS|SURCHARGE|ROUNDING|ROUND|EFT|AID |AVAILABLE|' +
-  'AVAIL BAL|AMOUNT DUE|AUTH CODE|AUTH NO|TRANS ID|TRANS NO|AISLE|STORE #|PHONE|WWW\\.|' +
-  'HTTP|CHEQUE|DEBIT|CREDIT|EFTPOS AVAIL|NUMBER OF ITEMS|# OF ITEMS)\\b',
-  'i'
-);
-
-const HEADER_STORE_RE = { ALDI: /\bALDI\b/i, WOOLWORTHS: /\bWOOLWORTHS\b|\bWOOLIES\b/i };
-
-const DATE_RE = /(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/;
-const GST_LINE_RE = /GST[^0-9]*(\d{1,4}\.\d{2})/i;
-const TOTAL_LINE_RE = /^\s*TOTAL\b(?!.*SUB)[^0-9]*\$?(\d{1,5}\.\d{2})/i;
-const ITEM_LINE_RE = /^(.+?)\s+\$?(\d{1,5}\.\d{2})\s*[A-Za-z]{0,2}\*?\s*$/;
-const QTY_PREFIX_RE = /^(\d+(?:\.\d+)?)\s*[xX]\s*(.+)$/;
-const LEADING_SKU_RE = /^\d{4,}\s+/;
+// Sonnet is the most accurate on faded/abbreviated receipts; swap to 'claude-haiku-5-5' for cheaper scans.
+const CLAUDE_MODEL = 'claude-sonnet-5-5';
 
 /* ============================== UTILS ============================== */
 
@@ -121,82 +105,13 @@ function setKnownItems(items) {
   localStorage.setItem(LS_KEYS.KNOWN_ITEMS, JSON.stringify(items));
 }
 function getApiKey() {
-  return localStorage.getItem(LS_KEYS.OCR_KEY) || '';
+  return localStorage.getItem(LS_KEYS.API_KEY) || '';
 }
 function setApiKey(key) {
-  localStorage.setItem(LS_KEYS.OCR_KEY, key || '');
+  localStorage.setItem(LS_KEYS.API_KEY, key || '');
 }
 
-/* ============================== RECEIPT TEXT PARSER ============================== */
-
-function parseReceiptText(rawText) {
-  const lines = String(rawText || '')
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0);
-
-  let store = null;
-  for (const line of lines) {
-    if (HEADER_STORE_RE.ALDI.test(line)) { store = 'Aldi'; break; }
-    if (HEADER_STORE_RE.WOOLWORTHS.test(line)) { store = 'Woolworths'; break; }
-  }
-
-  let date = null;
-  for (const line of lines) {
-    const m = line.match(DATE_RE);
-    if (m) {
-      const day = parseInt(m[1], 10);
-      const month = parseInt(m[2], 10);
-      if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
-        date = isoFromParts(day, month, m[3]);
-        break;
-      }
-    }
-  }
-
-  let gst = null;
-  for (const line of lines) {
-    const m = line.match(GST_LINE_RE);
-    if (m) { gst = parseFloat(m[1]); break; }
-  }
-
-  let total = null;
-  for (const line of lines) {
-    const m = line.match(TOTAL_LINE_RE);
-    if (m) { total = parseFloat(m[1]); break; }
-  }
-
-  const items = [];
-  for (const line of lines) {
-    if (SKIP_LINE_RE.test(line)) continue;
-    const m = line.match(ITEM_LINE_RE);
-    if (!m) continue;
-    let namePart = m[1].trim().replace(LEADING_SKU_RE, '').trim();
-    const price = parseFloat(m[2]);
-    if (!namePart || Number.isNaN(price)) continue;
-    if (namePart.length < 2) continue;
-
-    let qty = 1;
-    let unitPrice = price;
-    const qtyMatch = namePart.match(QTY_PREFIX_RE);
-    if (qtyMatch) {
-      qty = parseFloat(qtyMatch[1]);
-      namePart = qtyMatch[2].trim();
-      unitPrice = qty > 0 ? price / qty : price;
-    }
-
-    items.push({
-      id: uid(),
-      name: namePart,
-      qty,
-      unitPrice: Math.round(unitPrice * 100) / 100,
-    });
-  }
-
-  return { store, date, gst, total, items };
-}
-
-/* ============================== IMAGE RESIZE + OCR ============================== */
+/* ============================== IMAGE RESIZE ============================== */
 
 function resizeImageFile(file, maxDim = 1400) {
   return new Promise((resolve, reject) => {
@@ -222,24 +137,99 @@ function resizeImageFile(file, maxDim = 1400) {
   });
 }
 
-async function callOcrSpace(base64DataUrl, apiKey) {
-  const form = new FormData();
-  form.append('apikey', apiKey);
-  form.append('base64Image', base64DataUrl);
-  form.append('language', 'eng');
-  form.append('isOverlayRequired', 'false');
-  form.append('OCREngine', '2');
-  form.append('scale', 'true');
-  form.append('detectOrientation', 'true');
+/* ============================== CLAUDE RECEIPT READER ============================== */
 
-  const res = await fetch('https://api.ocr.space/parse/image', { method: 'POST', body: form });
-  if (!res.ok) throw new Error(`OCR request failed (${res.status})`);
-  const data = await res.json();
-  if (data.IsErroredOnProcessing) {
-    const msg = Array.isArray(data.ErrorMessage) ? data.ErrorMessage.join(', ') : (data.ErrorMessage || 'OCR processing error');
-    throw new Error(msg);
+const RECEIPT_TOOL = {
+  name: 'record_receipt',
+  description: 'Record the structured contents of a grocery receipt.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      store: { type: 'string', enum: ['Aldi', 'Woolworths', 'Unknown'], description: 'Which supermarket issued the receipt.' },
+      date: { type: 'string', description: 'Purchase date as YYYY-MM-DD. Australian receipts print dates as DD/MM/YY(YY). Empty string if not visible.' },
+      items: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'Product name as printed, with abbreviations expanded only when obvious.' },
+            qty: { type: 'number', description: 'Quantity bought (or weight in kg for priced-by-weight items).' },
+            unitPrice: { type: 'number', description: 'Price per unit (or per kg) in AUD, after any line discount shown directly under the item.' },
+          },
+          required: ['name', 'qty', 'unitPrice'],
+        },
+      },
+      gst: { type: ['number', 'null'], description: 'GST amount in AUD if printed, otherwise null.' },
+      total: { type: ['number', 'null'], description: 'Final amount paid in AUD, otherwise null.' },
+    },
+    required: ['store', 'date', 'items', 'gst', 'total'],
+  },
+};
+
+const RECEIPT_PROMPT = `Read this Australian supermarket receipt and record it with the record_receipt tool.
+- Include every purchased product line. Skip payment, card, loyalty/rewards, savings summary, rounding and subtotal lines.
+- If a line shows a quantity (e.g. "2 @ $1.50" or "3 x"), set qty and unitPrice accordingly.
+- For weighed items (e.g. "0.512 kg @ $4.99/kg"), qty is the weight and unitPrice the per-kg price.
+- If a discount or price reduction is printed directly beneath an item, fold it into that item's unitPrice.
+- Use plain numbers for money (no $ sign).`;
+
+async function callClaude(base64DataUrl, apiKey) {
+  const [header, data] = base64DataUrl.split(',');
+  const mediaType = (header.match(/data:(.*?);base64/) || [])[1] || 'image/jpeg';
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: 4096,
+      tools: [RECEIPT_TOOL],
+      tool_choice: { type: 'tool', name: RECEIPT_TOOL.name },
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data } },
+          { type: 'text', text: RECEIPT_PROMPT },
+        ],
+      }],
+    }),
+  });
+
+  let body = null;
+  try { body = await res.json(); } catch (e) { /* non-JSON error */ }
+  if (!res.ok) {
+    const msg = body && body.error && body.error.message;
+    if (res.status === 401) throw new Error('Claude rejected the API key — check it and try again.');
+    if (res.status === 429) throw new Error('Rate limited by Claude — wait a moment and try again.');
+    throw new Error(msg ? `Claude error: ${msg}` : `Claude request failed (${res.status})`);
   }
-  return (data.ParsedResults && data.ParsedResults[0] && data.ParsedResults[0].ParsedText) || '';
+
+  const toolUse = (body.content || []).find((b) => b.type === 'tool_use');
+  if (!toolUse) throw new Error("Claude couldn't read that receipt — try a clearer photo.");
+  const r = toolUse.input || {};
+
+  const items = (Array.isArray(r.items) ? r.items : [])
+    .filter((it) => it && String(it.name || '').trim())
+    .map((it) => ({
+      id: uid(),
+      name: String(it.name).trim(),
+      qty: Number(it.qty) > 0 ? Number(it.qty) : 1,
+      unitPrice: Math.round((Number(it.unitPrice) || 0) * 100) / 100,
+    }));
+
+  return {
+    store: STORES.includes(r.store) ? r.store : null,
+    date: /^\d{4}-\d{2}-\d{2}$/.test(r.date || '') ? r.date : null,
+    gst: typeof r.gst === 'number' ? r.gst : null,
+    total: typeof r.total === 'number' ? r.total : null,
+    items,
+    rawText: JSON.stringify(r),
+  };
 }
 
 /* ============================== SHARED STYLES ============================== */
@@ -755,20 +745,20 @@ function ApiKeyForm({ onSave }) {
     <div style={S.card}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <KeyRound size={17} color={COLORS.navy} />
-        <span style={{ fontWeight: 600, fontSize: 15 }}>Add your OCR.space API key</span>
+        <span style={{ fontWeight: 600, fontSize: 15 }}>Add your Claude API key</span>
       </div>
       <p style={{ fontSize: 13.5, color: COLORS.muted, lineHeight: 1.5, margin: '0 0 12px 0' }}>
-        This app reads receipts using the free OCR.space API. Get a free key at{' '}
-        <a href="https://ocr.space/ocrapi/freekey" target="_blank" rel="noreferrer" style={{ color: COLORS.aldi, fontWeight: 600 }}>
-          ocr.space/ocrapi/freekey
+        This app reads receipts with Claude. Create a key at{' '}
+        <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" style={{ color: COLORS.aldi, fontWeight: 600 }}>
+          console.anthropic.com
         </a>{' '}
-        then paste it below. It's stored only on this device.
+        (you'll need some API credit), then paste it below. It's stored only on this device and sent only to Anthropic.
       </p>
       <div style={{ display: 'flex', gap: 8 }}>
         <input
           value={key}
           onChange={(e) => setKey(e.target.value)}
-          placeholder="Paste your API key…"
+          placeholder="sk-ant-…"
           style={S.textInput}
         />
         <PrimaryButton onClick={() => key.trim() && onSave(key.trim())} disabled={!key.trim()}>
@@ -916,16 +906,15 @@ function ScanReceiptTab({ apiKey, onSaveApiKey, onSaveReceipt }) {
     setStatus('working');
     setErrorMsg('');
     try {
-      const dataUrl = await resizeImageFile(file, 1400);
-      const text = await callOcrSpace(dataUrl, apiKey);
-      const parsed = parseReceiptText(text);
+      const dataUrl = await resizeImageFile(file, 1568);
+      const parsed = await callClaude(dataUrl, apiKey);
       setDraft({
         store: parsed.store || '',
         date: parsed.date || isoToday(),
         gst: parsed.gst != null ? parsed.gst : 0,
         total: parsed.total != null ? parsed.total : 0,
         items: parsed.items.length ? parsed.items : [],
-        rawText: text,
+        rawText: parsed.rawText,
       });
       setStatus('review');
     } catch (err) {
@@ -1000,7 +989,7 @@ function ScanReceiptTab({ apiKey, onSaveApiKey, onSaveReceipt }) {
               onClick={() => onSaveApiKey('')}
               style={{ background: 'transparent', border: 'none', color: COLORS.muted, fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}
             >
-              Change OCR.space API key
+              Change Claude API key
             </button>
           </div>
         </div>

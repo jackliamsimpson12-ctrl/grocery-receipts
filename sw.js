@@ -1,7 +1,7 @@
 // Grocery Receipt Tracker - service worker
 // Network-first strategy for the app shell, falling back to cache when offline.
 
-const CACHE_VERSION = 'receipt-tracker-v1';
+const CACHE_VERSION = 'receipt-tracker-v2';
 const SHELL_FILES = [
   './',
   './index.html',
@@ -58,7 +58,7 @@ self.addEventListener('fetch', (event) => {
         .catch(() => caches.match(req).then((cached) => cached || caches.match('./index.html')))
     );
   } else {
-    // Cross-origin (fonts, esm.sh, OCR API): cache-first for fonts/CDN scripts, network passthrough otherwise.
+    // Cross-origin (fonts, esm.sh, Claude API): cache-first for fonts/CDN scripts, network passthrough otherwise.
     if (url.hostname.includes('fonts.g') || url.hostname.includes('esm.sh') || url.hostname.includes('unpkg.com')) {
       event.respondWith(
         caches.match(req).then((cached) => {
@@ -71,6 +71,6 @@ self.addEventListener('fetch', (event) => {
         })
       );
     }
-    // Otherwise (e.g. OCR.space API calls) let the browser handle it normally - no caching.
+    // Otherwise (e.g. Claude API calls) let the browser handle it normally - no caching.
   }
 });

@@ -166,7 +166,7 @@ const RECEIPT_TOOL = {
   },
 };
 
-const RECEIPT_PROMPT = `Read this Australian supermarket receipt and record it with the record_receipt tool.
+const RECEIPT_PROMPT = `Read this Australian supermarket receipt and record it by calling the record_receipt tool. Always call the tool, even if parts are hard to read; do not reply in text.
 - Include every purchased product line. Skip payment, card, loyalty/rewards, savings summary, rounding and subtotal lines.
 - If a line shows a quantity (e.g. "2 @ $1.50" or "3 x"), set qty and unitPrice accordingly.
 - For weighed items (e.g. "0.512 kg @ $4.99/kg"), qty is the weight and unitPrice the per-kg price.
@@ -189,7 +189,8 @@ async function callClaude(base64DataUrl, apiKey) {
       model: CLAUDE_MODEL,
       max_tokens: 4096,
       tools: [RECEIPT_TOOL],
-      tool_choice: { type: 'tool', name: RECEIPT_TOOL.name },
+      // Newer models only accept 'auto' here, so the prompt tells Claude to call the tool.
+      tool_choice: { type: 'auto' },
       messages: [{
         role: 'user',
         content: [
@@ -209,9 +210,16 @@ async function callClaude(base64DataUrl, apiKey) {
     throw new Error(msg ? `Claude error: ${msg}` : `Claude request failed (${res.status})`);
   }
 
-  const toolUse = (body.content || []).find((b) => b.type === 'tool_use');
-  if (!toolUse) throw new Error("Claude couldn't read that receipt — try a clearer photo.");
-  const r = toolUse.input || {};
+  const blocks = body.content || [];
+  const toolUse = blocks.find((b) => b.type === 'tool_use');
+  let r = toolUse ? toolUse.input : null;
+  if (!r) {
+    // Fallback: Claude answered in text, so pull the first JSON object out of it.
+    const text = blocks.filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+    const match = text.match(/\{[\s\S]*\}/);
+    if (match) { try { r = JSON.parse(match[0]); } catch (e) { r = null; } }
+  }
+  if (!r || !Array.isArray(r.items)) throw new Error("Claude couldn't read that receipt. Try a flatter, brighter photo.");
 
   const items = (Array.isArray(r.items) ? r.items : [])
     .filter((it) => it && String(it.name || '').trim())
